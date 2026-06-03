@@ -17,11 +17,6 @@ rm(list=ls())
 objects()
 ```
 
-Installing package called 'here'
-```{r}
-#install.packages("here")
-```
-
 #1.3 Ingesting Data into R 
 Loading the primary data science framework and Excel import library 
 ```{r}
@@ -93,7 +88,141 @@ Before moving into data modification, we can also conduct a statistics overview 
 #Generate an exploratory summary matrix 
 summary(penguins)
 ```
-The summary() printout is an immediate disgnostic tool. 
+The summary() printout is an immediate diagnostic tool. It reports the presence of explicit missing indicators (NA) within individual biological metrics. For example, if sex or body_mass_g lists several NA counts, it flags that certain penguins escaped the researchers during that day's field sampling. 
+
+#1.7 Foundational Grammar: slicing, filtering, sorting, and transforming 
+The dplyr package provides a highly structured grammar of data manipulation built around intuitive action verbs. 
+
+1.7.1 Isolating attributes with select() 
+The select() verb allows you to slice your datasets vertically, isolating or dropping columns based on variable names: 
+```{r}
+#Vertically slice specific morphometric variables by explicit name. 
+morphology_metrics <- select(penguins, species, bill_length_mm, bill_depth_mm, body_mass_g)
+glimpse(morphology_metrics) 
+```
+```{r}
+#Retain a continuous block of attributes using the colon operator. 
+spatial_block <- select(penguins, species:island)
+#Discard logistics tracking attributes while preserving everything else using the minus sign. 
+clean_scientific_fields <- select(penguins, -year)
+```
+
+1.7.2 Sifting rows with filter() 
+While select() targets variables vertically, filter() isolates records horizontally based on targeted conditional parameters. R evaluates every row agaidropping those that return FALSE or NA. 
+```{r}
+#Isolate observations belonging to a single categorical target group. 
+adelie_cohort <- filter(penguins, species == "Adelie")
+
+#Sift out individuals using continuous numerical boundary thresholds. Preserves only large penguins whose mass exceeds 4500 grams. 
+heavy_penguins <- filter(penguins, body_mass_g > 4500)
+
+#Combine multiple conditional parameters across separate attributes. Preserves records matching Gentoo penguins sampled explicitly on Biscoe Island. 
+biscoe_gentoo <- filter(penguins, species == "Gentoo" & island == "Biscoe")
+
+#Sift records matching multiple targeting flags within an explicit set 
+sub_islands <- filter(penguins, island %in% c("Dream", "Torgersen"))
+```
+
+1.7.3 Ordering sequences with arrange()
+The arrange() verb alters the sorting configurations of rows within your data frame without changing individual cell values. This is essential for inspecting size hierarchies or chronologically ordering long-term environmental observation lines: 
+```{r}
+#Sort penguins by ascending body mass(Default setting: smallest mass first)
+lighest_first <- arrange(penguins, body_mass_g)
+
+#Sort penguins in descending sequence using the desc() layout wrapper. 
+heaviest_first <- arrange(penguins, desc(body_mass_g))
+
+#Execute nested sorting criteria: Group by species, then sort by descending bill length. 
+stratified_morphology <- arrange(penguins, species, desc(bill_length_mm))
+```
+
+1.7.4 Introducing the Pipe(|>)
+We have been creating intermediate variables to hold the result at each stage. This is great for clarity, but it clutters our environment with a lot of objects. In R, there is a much cleaner way to chain these operations together: the pipe. 
+
+An Example: 
+
+```{r}
+penguins_subset <- mutate(penguins, bill_ratio = bill_length_mm / bill_depth_mm)
+penguins_final <- filter(penguins_subset, species == "Adelie")
+```
+OR we can simply write: 
+```{r}
+penguins_final <- penguins |>
+  mutate(bill_ratio = bill_length_mm / bill_depth_mm) |>
+  filter(species == "Adelie")
+```
+By using the pipe, the code becomes easier to read, easier to debug, and much more efficient to write. 
+
+1.7.5 Computing new attributes with mutate() 
+```{r}
+#Calculate a new morphological ratio in our environment 
+penguin_ratios <- penguins |> 
+  mutate(body_mass_kg = body_mass_g / 1000, #convert grams to kilograms
+         bill_ratio = bill_length_mm / bill_depth_mm #bill ratio
+         )
+
+#View the newly engineered variables appended to the far-right columns. 
+glimpse(penguin_ratios)
+```
+#1.8 Data aggregation and ecological summarisation 
+Isolating and sorting individual rows or columns allows us to clean and audit a dataset, but it does not tell you the broader or underlying ecological story. To extract meaningful biological conclusions - such as determining whether morphological allometry varies by species or island group-you must compress thousands of individual observations into into explicit population summary metrics. 
+
+This is achieved using the dual-layered combination of group_by() and summarise(). 
+
+```{r}
+#Grouping our active memory penguins by species 
+grouped_penguins <- group_by(penguins, species)
+
+#Notice that the table looks identical, but the metadata notes 'Groups: species [3]' 
+print(grouped_penguins)
+```
+```{r}
+#Collapsing the buckets into explicit summary metrics 
+species_mass_summary <- summarise(grouped_penguins,
+                                  mean_mass_g = mean(body_mass_g)
+)
+
+print(species_mass_summary)
+```
+The printout summary operation failed and returned an entire column of NA values for certain groups! 
+This is an essential behavioural design feature of R known as the Missing Value Trap. If a column contains even a single missing observation flag (NA) any mathematical aggregation function (such as mean(), sd(), or sum()) will automatically return NA to protect you from miscalculating metrics on incomplete data. To override this, we must explicitly declare that missing cells should be dropped during calculation. We'll use the magrittr pipe to wrangle our data, avoiding the missing value trap. 
+```{r}
+#Overcoming the missing value trap using na.rm = TRUE 
+biological_signal <- penguins %>%
+  group_by(species, sex) %>%
+  summarise(
+    sample_size = n(), #count total individuals per category 
+    mean_mass_g = mean(body_mass_g, na.rm = TRUE), #calculate mean ignoring missing cells 
+    sd_mass_g = sd(body_mass_g, na.rm = TRUE) #standard deviation calculation 
+  )
+
+print(biological_signal)
+```
+#1.9 Integrating data grammar with visual diagnostics in qmd 
+1.9.1 Wrangling and Plotting in Parallel 
+We will combine the pipe (|>) and the basics of ggplot2 into a single reproducible block. 
+
+Challenge: Visualing Body Size and Shape 
+Using data loaded, create a code chunk in your .qmd that performs the following 2 tasks simultaneously: 
+
+1. Summary Table: Pipe your data to group_by() and summarise() to calculate the mean body mass for each species and island AND 2. Visualisation: pipe the same dataset into ggplot() to create a boxplot of body_mass_g by species, with the island variable mapped to fill or facet_wrap(). 
+
+```{r}
+#penguin_figure_body_mass <- 
+  penguins |> 
+  group_by(species, island) |> 
+  summarise(mean_body_mass_g = mean(body_mass_g, na.rm = TRUE)) |> 
+  ggplot(aes(x = species, y = mean_body_mass_g, fill = island)) + 
+  geom_col() + 
+  theme_minimal()
+```
+1.9.2 Piping Directly to Visualisation 
+
+
+
+
+
+
 
 
 
