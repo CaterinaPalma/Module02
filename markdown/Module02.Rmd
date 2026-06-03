@@ -22,6 +22,7 @@ Loading the primary data science framework and Excel import library
 ```{r}
 library(tidyverse)
 library(readxl)
+library(readr)
 ```
 Practice Import A: Loading a standard comma-seperated plain text file:
 ```{r}
@@ -217,12 +218,88 @@ Using data loaded, create a code chunk in your .qmd that performs the following 
   theme_minimal()
 ```
 1.9.2 Piping Directly to Visualisation 
+Sometimes, you do not need to save a summary table as an object. If your goal is to visualse patterns and uncertainty within your aggregated data, you can extend your pipeline directly into ggplot2. 
 
+Example: Visualising Mean Trends with Uncertainty - instead of creating a summary table object first, you can pipe your grouped data straight into a plot using geom_errorbar() to represent the spread of your data: 
 
+```{r}
+#pipe directly from aggregation to plotting with error bars 
+mass_compare_plot <- penguins |>
+  group_by(species, island) |>
+  summarise(
+    mean_mass = mean(body_mass_g, na.rm = TRUE), 
+    sd_mass = sd(body_mass_g, na.rm = TRUE), 
+    n = n(), 
+    .groups = "drop"
+  ) |> 
+  ggplot(aes(x = species, y = mean_mass, colour = island)) +
+  geom_point(size = 3) + 
+  geom_errorbar(aes(ymin = mean_mass - sd_mass, 
+                    ymax = mean_mass + sd_mass), 
+                width = 0.2) +
+  labs(title = "Mean Body Mass by Species and Island", 
+       subtitle = "Error bars represent standard deviation", 
+       y = "Mean Body Mass (g)", 
+       x = "Species") +
+  theme_minimal()
 
+mass_compare_plot
+```
+The above graph is showing that Adelie & Chinstrap penguins have similar mean body masses. It is also showing that Adelie penguins on each of the islands have similar mean body masses. And it is showing that Gentoo penguins have a larger mean body mass compared to the other two penguin species. 
 
+Challenge: Create a new plot. Swap sd_mass (standard deviation) for standard error (sd/sqrt(n)). See how it changes the visual interpretation of the data uncertainty. 
 
+```{r}
+#pipe directly from aggregation to plotting with error bars 
+mass_sterror_plot <- penguins |>
+  group_by(species, island) |>
+  summarise(
+    mean_mass = mean(body_mass_g, na.rm = TRUE), 
+    sd_mass = sd(body_mass_g, na.rm = TRUE), 
+    n = n(), 
+    se_mass = (sd_mass/sqrt(n)),
+    .groups = "drop"
+  ) |> 
+  ggplot(aes(x = species, y = mean_mass, colour = island)) +
+  geom_point(size = 3) + 
+  geom_errorbar(aes(ymin = mean_mass - se_mass, 
+                    ymax = mean_mass + se_mass), 
+                width = 0.2) +
+  labs(title = "Mean Body Mass by Species and Island", 
+       subtitle = "Error bars represent standard error", 
+       y = "Mean Body Mass (g)", 
+       x = "Species") +
+  theme_minimal()
 
+mass_sterror_plot
+```
+#1.10 Saving, exporting and version milestones 
+```{r}
+#Create output directories if they do not exist: 
+if(!dir.exists("output")) dir.create("output")
+if(!dir.exists("output/figures")) dir.create("output/figures") #folder for figures 
+if(!dir.exists("output/tables")) dir.create("output/tables") #folder for tables 
+if(!dir.exists("Rdata")) dir.create("Rdata") #folder for Rdata objects 
+```
+
+TABLES 
+
+```{r}
+#1. Exporting our collapsed summary table as a universal flat text file. 
+write_csv(biological_signal, "output/tables/penguin_species_mass_summary.csv")
+
+#2. Saving out cleaned morpholigical cohort table as a native R binary file 
+saveRDS(penguins_final,"output/tables/penguins_final.rds")
+```
+
+FIGURES 
+
+```{r}
+ggsave("output/figures/mass_compare_plot.png", 
+       plot = mass_compare_plot,
+       width = 120, height = 120,
+       units = "mm", dpi = 300)
+```
 
 
 
