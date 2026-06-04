@@ -652,6 +652,8 @@ site_metadata <- tibble(
 )
 ```
 
+The workhorse: left_ and right_join() 
+
 
 
 
