@@ -652,7 +652,71 @@ site_metadata <- tibble(
 )
 ```
 
-The workhorse: left_ and right_join() 
+#The workhorse: left_ and right_join() 
+The left_join() and right_join() work the same way, but in opposite directions. 
+For example: left_join() keeps all the rows from your left table (observations) and matches data from your right table (site_metadata), wherever the key matches. If a match is missing, it fills in the gaps with NA. 
+
+```{r}
+#Joining metadata to our observations 
+joined_data <- observations |>
+  left_join(site_metadata, by = join_by(site_code))
+
+print(joined_data)
+```
+#The Strict Filter: inner_join()
+An inner_join() only keeps rows that have complete matches in both tables. If an observation occurs at a site that isnt listed in the metadata, that observation will be dropped from the dataset. 
+
+```{r}
+matched_data <- observations |>
+  inner_join(site_metadata, by = join_by(site_code))
+glimpse(matched_data)
+```
+#The Detective: anti_join()
+The anti_join() filters your left table to show only rows that do not have a match in the right table. 
+If you try a left_join() and end up with unexpected NA values, use an anti_join() to find out exactly which site codes are misspelled or missing from your metadata table. 
+
+```{r}
+#Which observations are missing from our metadata dictionary? 
+missing_context <- observations |> 
+  anti_join(site_metadata, by =join_by(site_code))
+
+glimpse(missing_context)
+```
+#2.10 Handling Missing Values 
+Missing data (NA) is normal in the reality of field science. Sometimes cells are deliberatly left blank to indicate zero when time is of the essence etc. 
+
+#Converting legacy erros with na_if() 
+Some kinds of equipment have numbers that represent a missing value, e.g. like -99 or -999, as they cannot output a blank NA. If these are left in our dataset, the mean temperature calculations will be completely ruined. But, this can be fixed securley inside a mutate() using dplyr::na_if(): 
+
+```{r}
+logger_data <- tibble(
+  depth_m = c(10, 20, 30, 40),
+  temp_c = c(24.5, 24.1, -999, 23.5) #-999 is a known sensor error code. 
+)
+
+#convert the -999 error codes to true NA values: 
+fixed_logger <- logger_data |> 
+  mutate(temp_c = na_if(temp_c, -999))
+
+print(fixed_logger)
+```
+#Replacing missing values with coalesce 
+Sometimes NA can mean a known fixed number, most commonly zero, not missing data. 
+E.g. a surveyor may leave a cell blank to indicate they saw zero sharks, R will import blank cell as NA. 
+We can use dplyr::coalesce() inside mutate() to hunt down every NA in a specific column and replace it with a zero (or any fixed value). 
+
+```{r}
+#Simulate some count data 
+shark_counts <- tibble(
+  site = c("Reef_A", "Reef_B", "Reef_C"),
+  shark_count = c(3, NA, 5)) #the NA here actually means zero sharks seen. 
+
+#Replace NA with 0 
+shark_fixed <- shark_counts |>
+  mutate(shark_count = coalesce(shark_count, 0))
+
+print(shark_fixed)
+```
 
 
 
