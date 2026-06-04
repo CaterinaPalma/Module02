@@ -288,7 +288,7 @@ TABLES
 #1. Exporting our collapsed summary table as a universal flat text file. 
 write_csv(biological_signal, "output/tables/penguin_species_mass_summary.csv")
 
-#2. Saving out cleaned morpholigical cohort table as a native R binary file 
+#2. Saving out cleaned morphological cohort table as a native R binary file 
 saveRDS(penguins_final,"output/tables/penguins_final.rds")
 ```
 
@@ -300,6 +300,367 @@ ggsave("output/figures/mass_compare_plot.png",
        width = 120, height = 120,
        units = "mm", dpi = 300)
 ```
+
+#### Workshop 6 ####
+
+```{r}
+library(dplyr)
+library(stringr)
+library(lubridate)
+library(tidyverse)
+library(tidyr)
+```
+#2.2 Tidying Data 
+
+Tables 
+
+```{r}
+table1
+```
+```{r}
+table2
+```
+```{r}
+table3
+```
+```{r}
+#Compute rate per 10,000 
+table1 %>% 
+  mutate(rate = cases/population * 10000)
+```
+```{r}
+#Compute cases per year 
+table1 %>%
+  count(year, wt = cases)
+```
+```{r}
+#Visualise changes over time 
+library(ggplot2)
+ggplot(table1, aes(year, cases)) + 
+  geom_line(aes(group = country), colour = "grey50") + 
+  geom_point(aes(colour = country))
+```
+#2.3 Pivoting data to make it tidy 
+Use tidyr:pivot_longer() to lengthen data and pivot_wider() to widen data. 
+
+#2.4 Lengthening Datasets 
+pivot_longer() makes datasets "longer" by increasing the number of rows and decreasing the number of columns, solving those common problems of data values in the variable name (eg. 2k1, wk2, wk3 etc.)
+The table4 needs to be wrangled into 'long' format (represented by the table on the left) in order to satisfy the 3 rules of tidy data. 
+
+Lets see pivot_longer() in an example using the billboard dataset records ranking songs in the year 2000. 
+
+```{r}
+billboard
+```
+The first step is to understand what each observation means, so we can be sure they are represented appropriatly as rows. 
+In this data set, each observation is a song. The first three columns (artist, track & data.entered) are variables that describe the song. Then we have 76 columns (wk1-76) that described the rank of the song in eachweek. Here, the column names are one variable (the week) and the cell values are another (the rank). to tidy the billbaord data we will use pivot_longer(). 
+
+```{r}
+billboard |> 
+  pivot_longer(
+    cols = starts_with("wk"),
+    names_to = "week",
+    values_to = "rank"
+  )
+```
+Now the data is in longform. We have the ranking of every song for every week E.g. Baby Don't Cry by 2 Pac from week 1 to week 76 with its ranking. So, we have many more pages as it is in longform. 
+cols = specifies the columns you want to pivot. 
+names_to = which names the variable stored in the column names, we chose to name that variable 'week'. 
+values_to = which names the variable stored in the cell values that we named 'rank'. 
+There are a lot of NA values throughout the weeks, so make this go away we ass values_drop_na = TRUE. 
+
+```{r}
+billboard |> 
+  pivot_longer(
+    cols = starts_with("wk"),
+    names_to = "week",
+    values_to = "rank", 
+    values_drop_na = TRUE
+  )
+```
+Now there are fewer rows and our data is tidy! 
+
+#Pivoting longer - example 
+Let's see how pivoting can help reshape and see what it actually does to our data. 
+```{r}
+df <- tribble(
+  ~id, ~bp1, ~bp2,
+  "A", 100, 120,
+  "B", 140, 115, 
+  "C", 120, 125
+)
+```
+Here, we have created a dataset called 'df' with 3 variables and their associated values. However, we want our new tidy dataset to have 3 variables: 
+1. id (which already exists)
+2. measurement (the column names) 
+3. value (the cell values) 
+To make this happen we need to pivot df longer... 
+
+```{r}
+df |>
+  pivot_longer(
+    cols = bp1:bp2,
+    names_to = "measurement", 
+    values_to = "value"
+  )
+```
+#2.5 Widening Datasets 
+In less common cases, we may need to widen a dataset rather than lengthen it. Widening is the opposite of lengthening so we use the function pivot_wider(). It allows us to handle an observation if it is scattered across multiple rows. 
+We'll use an example to explore pivot_wider() looking at the cms_patient_experience dataset from the Centres of Medicare and Medicaid . 
+```{r}
+cms_patient_experience
+```
+The core unit being studied is an organisation, but in this format, each organisation is spread across six rows, with one row for each measurement taken in the survey organisation. We can see the complete set of values for measure_cd and measure_title by using distinct(). 
+```{r}
+cms_patient_experience |>
+  distinct(measure_cd, measure_title)
+```
+Neither of the columns name great variable names i.e. measure_cd doesn't hint at the meaning of the variable and measure_title is a long sentence containing spaces. 
+pivot_wider() has the opposite interface to pivot_longer():_from) and the column name (names_from). 
+```{r}
+cms_patient_experience |>
+  pivot_wider(
+    names_from = measure_cd, 
+    values_from = prf_rate
+  )
+```
+The above output doesn't look quite right, we still seem to have multiple rows for each organisation. That's beacause, we also need to tell pivot_wider() which column or columns have values that uniquely identify each row, in this case those are the variables starting with "org": 
+
+```{r}
+cms_patient_experience |>
+  pivot_wider(
+    id_cols = starts_with("org"),
+    names_from = measure_cd,
+    values_from = prf_rate
+  )
+```
+This output gives us what we're looking for! 
+
+#Pivoting Wider Example 
+To understand what pivot_wider() does to our data, let's use a simple example. 
+This time we have two patient id's A and B, and we have three blood pressure (bp) measurements from patient A and two from patient B. 
+```{r}
+df <- tribble(
+  ~id, ~measurement, ~value, 
+  "A", "bp1", 100, 
+  "B", "bp1", 140, 
+  "B", "bp2", 115, 
+  "A", "bp2", 120, 
+  "A", "bp3", 105
+)
+```
+We will take the names from the measurement column using the names_from() argument and the values from the value column using the values_from() argument. 
+```{r}
+df |>
+  pivot_wider(
+    names_from = measurement, 
+    values_from = value
+  )
+```
+To start the pivoting process, pivot_wider() needs to first figure out what will go in the rows and columns. The new column names will be the unique values of measurement. 
+```{r}
+df |> 
+  distinct(measurement) |> 
+  pull()
+```
+This shows the variables I have, bp1 to bp3. 
+```{r}
+df |> 
+  select(-measurement, -value) |>
+  distinct()
+```
+This shows the ids I have, patient A and patient B. 
+pivot_wider() then combines these results to generate an empty dataframe: 
+```{r}
+df |> 
+  select(-measurement, -value) |> 
+  distinct() |> 
+  mutate(x = NA, y = NA, z = NA)
+```
+#2.6 Pivoting Exercises using Palmer Penguins 
+Lengthening data with pivot_longer(). 
+Imagine we want to create a single plot that shows the distribution of all morphometric measurements (bill length, bill depth, flipper length, and body mass) for our penguins. Currently, in tidy format, these variables are spread across four separate columns. To plot them together use facet_wrap(). 
+```{r}
+library(palmerpenguins)
+
+#Create a long version of the penguins dataset. 
+
+penguins_long <- penguins |> 
+  pivot_longer(
+    cols = c(bill_length_mm, bill_depth_mm, flipper_length_mm, body_mass_g), 
+    names_to = "measurement_type", 
+    values_to = "value"
+  )
+
+# View the result 
+head(penguins_long)
+```
+This lengthened format is exactly what ggplot2 expects for multi-panel faceting. Let's visualise these distributions simultaneously: 
+```{r}
+penguins_long |> 
+  drop_na(value) |> 
+  ggplot(aes(x = value, fill = species)) +
+  geom_histogram(bins = 50, alpha = 0.7, colour = "black") +
+  facet_wrap(~ measurement_type, scales = "free_x") +
+  theme_minimal() +
+  labs(
+    title = "Morphometric distributions across penguin species", 
+    x = "Measurement value", 
+    y = "Frequency"
+  )
+```
+#Widening data with pivot_wider() 
+Now, we will look at the reverse operation. Sometimes, it's much easier for a reader to look at a wide table than a long, repetitive list. 
+First, lets calculate the mean body mass for each species on each island using group_by() and summarise(). 
+```{r}
+mass_summary <- penguins |>
+  drop_na(body_mass_g) |>
+  group_by(species, island) |>
+  summarise(mean_mass = mean(body_mass_g))
+
+head(mass_summary)
+```
+This output is technically tidy and computationally useful, but it is not ideal for publication presentation. We can use pivot_wider() to pull the island names up into columns, creating a clean matrix of species by island. 
+```{r}
+mass_matrix <- mass_summary |>
+  pivot_wider(
+    names_from = island,
+    values_from = mean_mass
+  )
+
+head(mass_matrix)
+```
+I prefer the way this looks. 
+
+#2.7 Separating and Uniting Data Tables 
+In table3, we see the one column 'rate' contains two variables (cases and population). To address this, we can use separate() function, which separates one column into multiple columns wherever you designate. 
+```{r}
+table3
+```
+Now we will separate the rate column into two columns. 
+```{r}
+table3 %>% 
+  separate(rate, into = c("cases", "population"))
+```
+Now, you can see there are two columns, cases and population. R knew to separate the numbers where the slash was. 
+But, if you wanted to use specific characters to separate a column, you can put this into the argument: 
+```{r}
+table3 %>%
+  separate(rate, into = c("cases", "population"), sep = "/")
+```
+As we can see, the columns cases and population are showing as <chr> which means character, which is wrong, they are numbers, this happens because its a default of separate(). 
+We can fix this by using convert = TRUE. 
+```{r}
+table3 %>%
+  separate(rate, into = c("cases", "population"), convert = TRUE)
+```
+Now the columns cases and population are <int>, as they are integer types. 
+
+We can also seperate the last two digits of each year. This makes data less tidy, bu can be useful in some cases. 
+```{r}
+table3 %>%
+  separate(year, into = c("century", "year"), sep =2)
+```
+A new column has been added, century. 
+
+#Using unite(). 
+unite() is the inverse of separate(). We use unite() to combine multiple columns into a single column. We will use it to combine century and year columns from above. 
+```{r}
+table5 %>% 
+  unite(new, century, year, sep = "")
+```
+Nice! Now our columns are combined. We add sep="" because we dont want any separator. 
+
+#2.8 Wrangling Strings & Dates 
+When combining data from different sources-say, a government database, an oceanographic sensor, and handwritten field sheets-we inevitably run into formatting mismatches. A computer does not know that Nelly Bay, nelly_bay and NELLY BAY are the same location. Similarly, date formats vary wildy depending on the instrument or the researchers regional settings (e.g. DD/MM/YYYY vs. YYYY-MM-DD). 
+So, we myst first standardize our text strings and date-times. The tidyverse includes two specialised packages for this... stringr for text and lubridate for dates. 
+
+#Standardising text with stringr. 
+stringr package begins with str_. 
+
+```{r}
+library(tidyverse)
+
+#A remarkably messy data frame of field sites 
+messy_sites <- tibble(
+  site_id = c("Nelly Bay", "nelly_bay", "NELLY BAY", "Geoffrey_Bay", "geoffrey bay")
+)
+
+#Using stringr within mutate to standardise the text: 
+clean_sites <- messy_sites |> 
+  mutate(
+    #1. convert everything to lowercase 
+    site_clean = str_to_lower(site_id),
+    #2. Replace any spaces with underscores 
+    site_clean = str_replace_all(site_clean, pattern = " ", replacement = "_"),
+    #3. trim any leading or trailing whitespaces (invisible spaces at the ends)
+    site_clean = str_trim(site_clean)
+  )
+
+print(clean_sites)
+```
+As we can see, all the different types of nelly bay variations and geoffery bay variations are now the same. 
+
+#Mastering time with lubridate 
+If your dataset contains a date formatted as "25/12/2026" we would use the function dmy(). If the date is 2026-12-25, you use ymd(). 
+
+```{r}
+library(lubridate)
+
+#Parsing different date formats. 
+
+date_1 <- dmy("25/12/2026")
+date_2 <- ymd("2026-12-25")
+
+#R now recognises these as identical Date objects. 
+date_1 == date_2
+```
+For high-frequency marine data, such as acoustic telemetry or CTD profiles, we often need to parse exact timestamps. We do this by appending _mhs (hours, minutes, seconds) to our functions. 
+
+```{r}
+#A tibble of raw sensor data with messy character timestamp... 
+sensor_data <- tibble(
+  raw_time = c("14-05-2026 08:30:00", "14-05-2026 08:45:00", "14-05-2026 09:00:00"),
+  temperature = c(24.5, 24.6, 24.4)
+)
+
+#Converting character strings to true POSIXct datetime objects 
+sensor_clean <- sensor_data |>
+  mutate(
+    true_time = dmy_hms(raw_time)
+  )
+
+print(sensor_clean)
+```
+#2.9 Relational Data: Joining Tables 
+Bringing tables together based on a common identifying column, known as a key. 
+We will set up two tables to demonstrate: 
+
+```{r}
+#Table 1: Biological observation data. 
+observations <- tibble(
+  site_code = c("NB", "GB", "MI", "NB", "HB"), 
+  species = c("Trout", "Snapper", "Trout", "Cod", "Trout"),
+  count = c(5, 2, 1, 3, 8)
+)
+
+#Table 2: Spatial metadata
+site_metadata <- tibble(
+  site_code = c("NB", "GB", "MI", "NB", "HB"),
+  zone = c("Marine National Park", "Conservation Park", "Habitat Protection", "General Use", "Other Use"),
+  lat = c(-19.16, -19.15, -19.14, -19.12, -19.11)
+)
+```
+
+
+
+
+
+
+
+
+
+
 
 
 
