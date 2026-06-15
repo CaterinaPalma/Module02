@@ -1,315 +1,20 @@
 ---
 title: "Module02 Data Science in R"
 author: "Caterina"
-date: "2026-06-02"
+date: "2026-06-11"
 output: html_document
 ---
 
-# Workshop 1
+# Workshop 2
+
 ```{r setup, include=FALSE}
+#Set options, housekeeping
 knitr::opts_chunk$set(
   echo = TRUE,
   include = TRUE,
   message = FALSE,
   warning = FALSE)
 ```
-
-#### 1.3 Memory Allocation and Environment Hygiene 
-
-```{r}
-#Empties the environment 
-rm(list=ls())
-#confirm that global session memory now completely vacant
-objects()
-```
-
-#### 1.3 Ingesting Data into R 
-Loading the primary data science framework and Excel import library 
-```{r}
-library(tidyverse)
-library(readxl)
-library(readr)
-```
-Practice Import A: Loading a standard comma-seperated plain text file:
-```{r}
-benthic_cover <- read.csv(here::here("data/reef_cover_log.csv"))
-```
-Practice Import B: Parsing a tab-seperated telemetry instrument array string 
-```{r}
-acoustic_stream <- read_tsv(here::here("data/acoustic_telemetry_stream.txt"))
-```
-Practice Import C: Targeting a specific sheet in a multi-yab Excel spreadsheet 
-```{r}
-fisheries_annual <- read_excel(here::here("data/fish_catch_data.xlsx"), sheet ="Commercial_2026")
-```
-Try loading mangrove dataset... 
-```{r}
-mangrove_data <- read_csv(file=here::here("data/mangrove_survey_raw.csv"))
-```
-We're going to use args within read_csv to skip headers and declare missing files. 
-By providing the NA chacater vector, we instruct R to search for common biological placeholder shorthands (like . or ND for "no data") and normalise them into an explicit, trackable missing indicator state - NA - right at the point of ingestion. 
-```{r}
-mangrove_data <- read_csv (
-  here::here("data/mangrove_survey_raw.csv"),
-  skip = 5, #this skips the first 5 lines of field notes 
-  na = c(".", "NA", "9999", "ND", "blank")) #convert known text alternatives to true NA 
-```
-#### 1.5 Data frame architectures: Tibbles vs. Legacy Tables 
-To see the behavioural differences directly, initialise a native tidyverse data object and enforce a comparative class transformation: 
-```{r}
-#Force a modern tibble to degrade into a legacy base R data frame structure
-benthic_cover_df <- as.data.frame(benthic_cover)
-```
-and compare 
-```{r}
-#Print the old-style data frame structure to view 
-print(benthic_cover_df)
-#And compare with tibble alternative 
-print(benthic_cover)
-```
-
-#### 1.6 Wrangling out ecological signals using Palmer Penguins 
-To explore how data wrangling reveals information about underlying ecology, we will transition to working with a landmark built-in data set: the Palmer Penguins archive. This collection contains rigorous multi-species morphological tracking records collected at the Palmer Station long-term ecological research site in Antarctica. 
-
-To activate the dataset and begin the exploratory audit, install the package repository and initialise the object inside your local workspace session memory: 
-
-```{r}
-#Install the data package (this will be executed in the console pane so it will not be saved) 
-#install.packages("palmerpenguins")
-
-#Load the package data into active memory 
-library(palmerpenguins)
-data("penguins")
-```
-
-```{r}
-#Examine the structure of the dataset - always do this when loading a new dataset! 
-glimpse(penguins) #tidyverse version from dplyr package 
-str(penguins) #base R version 
-```
-Looking at the printout from the above code... the glimpse() command maps out the entire architectural anatomy of your dataset. Note the variable vector types listed within the arrow markers: 
-<fct> (Factor): categorical groupings with fixed levels(e.g. species containing Adelie, Chinstrap, and Gentoo).
-<dbl> (Double): continuous numeric measurements containing decimals (e.g. bill_length_mm). 
-<int> (Integer): whole number variables tracking counts (e.g. body_mass_g). 
-Before moving into data modification, we can also conduct a statistics overview to mao out missing observations and parameter boundaries: 
-```{r}
-#Generate an exploratory summary matrix 
-summary(penguins)
-```
-The summary() printout is an immediate diagnostic tool. It reports the presence of explicit missing indicators (NA) within individual biological metrics. For example, if sex or body_mass_g lists several NA counts, it flags that certain penguins escaped the researchers during that day's field sampling. 
-
-#### 1.7 Foundational Grammar: slicing, filtering, sorting, and transforming 
-The dplyr package provides a highly structured grammar of data manipulation built around intuitive action verbs. 
-
-1.7.1 Isolating attributes with select() 
-The select() verb allows you to slice your datasets vertically, isolating or dropping columns based on variable names: 
-```{r}
-#Vertically slice specific morphometric variables by explicit name. 
-morphology_metrics <- select(penguins, species, bill_length_mm, bill_depth_mm, body_mass_g)
-glimpse(morphology_metrics) 
-```
-```{r}
-#Retain a continuous block of attributes using the colon operator. 
-spatial_block <- select(penguins, species:island)
-#Discard logistics tracking attributes while preserving everything else using the minus sign. 
-clean_scientific_fields <- select(penguins, -year)
-```
-
-#### 1.7.2 Sifting rows with filter() 
-While select() targets variables vertically, filter() isolates records horizontally based on targeted conditional parameters. R evaluates every row agaidropping those that return FALSE or NA. 
-```{r}
-#Isolate observations belonging to a single categorical target group. 
-adelie_cohort <- filter(penguins, species == "Adelie")
-
-#Sift out individuals using continuous numerical boundary thresholds. Preserves only large penguins whose mass exceeds 4500 grams. 
-heavy_penguins <- filter(penguins, body_mass_g > 4500)
-
-#Combine multiple conditional parameters across separate attributes. Preserves records matching Gentoo penguins sampled explicitly on Biscoe Island. 
-biscoe_gentoo <- filter(penguins, species == "Gentoo" & island == "Biscoe")
-
-#Sift records matching multiple targeting flags within an explicit set 
-sub_islands <- filter(penguins, island %in% c("Dream", "Torgersen"))
-```
-
-#### 1.7.3 Ordering sequences with arrange()
-The arrange() verb alters the sorting configurations of rows within your data frame without changing individual cell values. This is essential for inspecting size hierarchies or chronologically ordering long-term environmental observation lines: 
-```{r}
-#Sort penguins by ascending body mass(Default setting: smallest mass first)
-lighest_first <- arrange(penguins, body_mass_g)
-
-#Sort penguins in descending sequence using the desc() layout wrapper. 
-heaviest_first <- arrange(penguins, desc(body_mass_g))
-
-#Execute nested sorting criteria: Group by species, then sort by descending bill length. 
-stratified_morphology <- arrange(penguins, species, desc(bill_length_mm))
-```
-
-## 1.7.4 Introducing the Pipe(|>)
-We have been creating intermediate variables to hold the result at each stage. This is great for clarity, but it clutters our environment with a lot of objects. In R, there is a much cleaner way to chain these operations together: the pipe. 
-
-An Example: 
-
-```{r}
-penguins_subset <- mutate(penguins, bill_ratio = bill_length_mm / bill_depth_mm)
-penguins_final <- filter(penguins_subset, species == "Adelie")
-```
-OR we can simply write: 
-```{r}
-penguins_final <- penguins |>
-  mutate(bill_ratio = bill_length_mm / bill_depth_mm) |>
-  filter(species == "Adelie")
-```
-By using the pipe, the code becomes easier to read, easier to debug, and much more efficient to write. 
-
-#### 1.7.5 Computing new attributes with mutate() 
-```{r}
-#Calculate a new morphological ratio in our environment 
-penguin_ratios <- penguins |> 
-  mutate(body_mass_kg = body_mass_g / 1000, #convert grams to kilograms
-         bill_ratio = bill_length_mm / bill_depth_mm #bill ratio
-         )
-
-#View the newly engineered variables appended to the far-right columns. 
-glimpse(penguin_ratios)
-```
-
-#### 1.8 Data aggregation and ecological summarisation 
-Isolating and sorting individual rows or columns allows us to clean and audit a dataset, but it does not tell you the broader or underlying ecological story. To extract meaningful biological conclusions - such as determining whether morphological allometry varies by species or island group-you must compress thousands of individual observations into into explicit population summary metrics. 
-
-This is achieved using the dual-layered combination of group_by() and summarise(). 
-
-```{r}
-#Grouping our active memory penguins by species 
-grouped_penguins <- group_by(penguins, species)
-
-#Notice that the table looks identical, but the metadata notes 'Groups: species [3]' 
-print(grouped_penguins)
-```
-```{r}
-#Collapsing the buckets into explicit summary metrics 
-species_mass_summary <- summarise(grouped_penguins,
-                                  mean_mass_g = mean(body_mass_g)
-)
-
-print(species_mass_summary)
-```
-The printout summary operation failed and returned an entire column of NA values for certain groups! 
-This is an essential behavioural design feature of R known as the Missing Value Trap. If a column contains even a single missing observation flag (NA) any mathematical aggregation function (such as mean(), sd(), or sum()) will automatically return NA to protect you from miscalculating metrics on incomplete data. To override this, we must explicitly declare that missing cells should be dropped during calculation. We'll use the magrittr pipe to wrangle our data, avoiding the missing value trap. 
-```{r}
-#Overcoming the missing value trap using na.rm = TRUE 
-biological_signal <- penguins %>%
-  group_by(species, sex) %>%
-  summarise(
-    sample_size = n(), #count total individuals per category 
-    mean_mass_g = mean(body_mass_g, na.rm = TRUE), #calculate mean ignoring missing cells 
-    sd_mass_g = sd(body_mass_g, na.rm = TRUE) #standard deviation calculation 
-  )
-
-print(biological_signal)
-```
-#### 1.9 Integrating data grammar with visual diagnostics in qmd 
-1.9.1 Wrangling and Plotting in Parallel 
-We will combine the pipe (|>) and the basics of ggplot2 into a single reproducible block. 
-
-Challenge: Visualing Body Size and Shape 
-Using data loaded, create a code chunk in your .qmd that performs the following 2 tasks simultaneously: 
-
-1. Summary Table: Pipe your data to group_by() and summarise() to calculate the mean body mass for each species and island AND 2. Visualisation: pipe the same dataset into ggplot() to create a boxplot of body_mass_g by species, with the island variable mapped to fill or facet_wrap(). 
-
-```{r}
-#penguin_figure_body_mass <- 
-  penguins |> 
-  group_by(species, island) |> 
-  summarise(mean_body_mass_g = mean(body_mass_g, na.rm = TRUE)) |> 
-  ggplot(aes(x = species, y = mean_body_mass_g, fill = island)) + 
-  geom_col() + 
-  theme_minimal()
-```
-1.9.2 Piping Directly to Visualisation 
-Sometimes, you do not need to save a summary table as an object. If your goal is to visualse patterns and uncertainty within your aggregated data, you can extend your pipeline directly into ggplot2. 
-
-Example: Visualising Mean Trends with Uncertainty - instead of creating a summary table object first, you can pipe your grouped data straight into a plot using geom_errorbar() to represent the spread of your data: 
-
-```{r}
-#pipe directly from aggregation to plotting with error bars 
-mass_compare_plot <- penguins |>
-  group_by(species, island) |>
-  summarise(
-    mean_mass = mean(body_mass_g, na.rm = TRUE), 
-    sd_mass = sd(body_mass_g, na.rm = TRUE), 
-    n = n(), 
-    .groups = "drop"
-  ) |> 
-  ggplot(aes(x = species, y = mean_mass, colour = island)) +
-  geom_point(size = 3) + 
-  geom_errorbar(aes(ymin = mean_mass - sd_mass, 
-                    ymax = mean_mass + sd_mass), 
-                width = 0.2) +
-  labs(title = "Mean Body Mass by Species and Island", 
-       subtitle = "Error bars represent standard deviation", 
-       y = "Mean Body Mass (g)", 
-       x = "Species") +
-  theme_minimal()
-
-mass_compare_plot
-```
-The above graph is showing that Adelie & Chinstrap penguins have similar mean body masses. It is also showing that Adelie penguins on each of the islands have similar mean body masses. And it is showing that Gentoo penguins have a larger mean body mass compared to the other two penguin species. 
-
-Challenge: Create a new plot. Swap sd_mass (standard deviation) for standard error (sd/sqrt(n)). See how it changes the visual interpretation of the data uncertainty. 
-
-```{r}
-#pipe directly from aggregation to plotting with error bars 
-mass_sterror_plot <- penguins |>
-  group_by(species, island) |>
-  summarise(
-    mean_mass = mean(body_mass_g, na.rm = TRUE), 
-    sd_mass = sd(body_mass_g, na.rm = TRUE), 
-    n = n(), 
-    se_mass = (sd_mass/sqrt(n)),
-    .groups = "drop"
-  ) |> 
-  ggplot(aes(x = species, y = mean_mass, colour = island)) +
-  geom_point(size = 3) + 
-  geom_errorbar(aes(ymin = mean_mass - se_mass, 
-                    ymax = mean_mass + se_mass), 
-                width = 0.2) +
-  labs(title = "Mean Body Mass by Species and Island", 
-       subtitle = "Error bars represent standard error", 
-       y = "Mean Body Mass (g)", 
-       x = "Species") +
-  theme_minimal()
-
-mass_sterror_plot
-```
-#### 1.10 Saving, exporting and version milestones 
-```{r}
-#Create output directories if they do not exist: 
-if(!dir.exists("output")) dir.create("output")
-if(!dir.exists("output/figures")) dir.create("output/figures") #folder for figures 
-if(!dir.exists("output/tables")) dir.create("output/tables") #folder for tables 
-if(!dir.exists("Rdata")) dir.create("Rdata") #folder for Rdata objects 
-```
-
-TABLES 
-
-```{r}
-#1. Exporting our collapsed summary table as a universal flat text file. 
-write_csv(biological_signal, "output/tables/penguin_species_mass_summary.csv")
-
-#2. Saving out cleaned morphological cohort table as a native R binary file 
-saveRDS(penguins_final,"output/tables/penguins_final.rds")
-```
-
-FIGURES 
-
-```{r}
-ggsave("output/figures/mass_compare_plot.png", 
-       plot = mass_compare_plot,
-       width = 120, height = 120,
-       units = "mm", dpi = 300)
-```
-
-#### Workshop 6 ####
 
 ```{r}
 library(dplyr)
@@ -318,7 +23,8 @@ library(lubridate)
 library(tidyverse)
 library(tidyr)
 ```
-#2.2 Tidying Data 
+
+#### 2.2 Tidying Data 
 
 Tables 
 
@@ -348,10 +54,11 @@ ggplot(table1, aes(year, cases)) +
   geom_line(aes(group = country), colour = "grey50") + 
   geom_point(aes(colour = country))
 ```
-#2.3 Pivoting data to make it tidy 
+
+#### 2.3 Pivoting data to make it tidy 
 Use tidyr:pivot_longer() to lengthen data and pivot_wider() to widen data. 
 
-#2.4 Lengthening Datasets 
+#### 2.4 Lengthening Datasets 
 pivot_longer() makes datasets "longer" by increasing the number of rows and decreasing the number of columns, solving those common problems of data values in the variable name (eg. 2k1, wk2, wk3 etc.)
 The table4 needs to be wrangled into 'long' format (represented by the table on the left) in order to satisfy the 3 rules of tidy data. 
 
@@ -360,6 +67,7 @@ Lets see pivot_longer() in an example using the billboard dataset records rankin
 ```{r}
 billboard
 ```
+
 The first step is to understand what each observation means, so we can be sure they are represented appropriatly as rows. 
 In this data set, each observation is a song. The first three columns (artist, track & data.entered) are variables that describe the song. Then we have 76 columns (wk1-76) that described the rank of the song in eachweek. Here, the column names are one variable (the week) and the cell values are another (the rank). to tidy the billbaord data we will use pivot_longer(). 
 
@@ -371,6 +79,7 @@ billboard |>
     values_to = "rank"
   )
 ```
+
 Now the data is in longform. We have the ranking of every song for every week E.g. Baby Don't Cry by 2 Pac from week 1 to week 76 with its ranking. So, we have many more pages as it is in longform. 
 cols = specifies the columns you want to pivot. 
 names_to = which names the variable stored in the column names, we chose to name that variable 'week'. 
@@ -386,10 +95,12 @@ billboard |>
     values_drop_na = TRUE
   )
 ```
+
 Now there are fewer rows and our data is tidy! 
 
-#Pivoting longer - example 
+#### Pivoting longer - example 
 Let's see how pivoting can help reshape and see what it actually does to our data. 
+
 ```{r}
 df <- tribble(
   ~id, ~bp1, ~bp2,
@@ -398,6 +109,7 @@ df <- tribble(
   "C", 120, 125
 )
 ```
+
 Here, we have created a dataset called 'df' with 3 variables and their associated values. However, we want our new tidy dataset to have 3 variables: 
 1. id (which already exists)
 2. measurement (the column names) 
@@ -412,19 +124,25 @@ df |>
     values_to = "value"
   )
 ```
-#2.5 Widening Datasets 
+
+#### 2.5 Widening Datasets 
 In less common cases, we may need to widen a dataset rather than lengthen it. Widening is the opposite of lengthening so we use the function pivot_wider(). It allows us to handle an observation if it is scattered across multiple rows. 
-We'll use an example to explore pivot_wider() looking at the cms_patient_experience dataset from the Centres of Medicare and Medicaid . 
+We'll use an example to explore pivot_wider() looking at the cms_patient_experience dataset from the Centres of Medicare and Medicaid. 
+
 ```{r}
 cms_patient_experience
 ```
+
 The core unit being studied is an organisation, but in this format, each organisation is spread across six rows, with one row for each measurement taken in the survey organisation. We can see the complete set of values for measure_cd and measure_title by using distinct(). 
+
 ```{r}
 cms_patient_experience |>
   distinct(measure_cd, measure_title)
 ```
+
 Neither of the columns name great variable names i.e. measure_cd doesn't hint at the meaning of the variable and measure_title is a long sentence containing spaces. 
 pivot_wider() has the opposite interface to pivot_longer():_from) and the column name (names_from). 
+
 ```{r}
 cms_patient_experience |>
   pivot_wider(
@@ -432,7 +150,8 @@ cms_patient_experience |>
     values_from = prf_rate
   )
 ```
-The above output doesn't look quite right, we still seem to have multiple rows for each organisation. That's beacause, we also need to tell pivot_wider() which column or columns have values that uniquely identify each row, in this case those are the variables starting with "org": 
+
+The above output doesn't look quite right, we still seem to have multiple rows for each organisation. That's because, we also need to tell pivot_wider() which column or columns have values that uniquely identify each row, in this case those are the variables starting with "org": 
 
 ```{r}
 cms_patient_experience |>
@@ -442,11 +161,13 @@ cms_patient_experience |>
     values_from = prf_rate
   )
 ```
+
 This output gives us what we're looking for! 
 
-#Pivoting Wider Example 
+#### Pivoting Wider Example 
 To understand what pivot_wider() does to our data, let's use a simple example. 
 This time we have two patient id's A and B, and we have three blood pressure (bp) measurements from patient A and two from patient B. 
+
 ```{r}
 df <- tribble(
   ~id, ~measurement, ~value, 
@@ -457,7 +178,9 @@ df <- tribble(
   "A", "bp3", 105
 )
 ```
+
 We will take the names from the measurement column using the names_from() argument and the values from the value column using the values_from() argument. 
+
 ```{r}
 df |>
   pivot_wider(
@@ -465,29 +188,37 @@ df |>
     values_from = value
   )
 ```
+
 To start the pivoting process, pivot_wider() needs to first figure out what will go in the rows and columns. The new column names will be the unique values of measurement. 
+
 ```{r}
 df |> 
   distinct(measurement) |> 
   pull()
 ```
+
 This shows the variables I have, bp1 to bp3. 
+
 ```{r}
 df |> 
   select(-measurement, -value) |>
   distinct()
 ```
+
 This shows the ids I have, patient A and patient B. 
 pivot_wider() then combines these results to generate an empty dataframe: 
+
 ```{r}
 df |> 
   select(-measurement, -value) |> 
   distinct() |> 
   mutate(x = NA, y = NA, z = NA)
 ```
-#2.6 Pivoting Exercises using Palmer Penguins 
+
+#### 2.6 Pivoting Exercises using Palmer Penguins 
 Lengthening data with pivot_longer(). 
 Imagine we want to create a single plot that shows the distribution of all morphometric measurements (bill length, bill depth, flipper length, and body mass) for our penguins. Currently, in tidy format, these variables are spread across four separate columns. To plot them together use facet_wrap(). 
+
 ```{r}
 library(palmerpenguins)
 
@@ -503,7 +234,9 @@ penguins_long <- penguins |>
 # View the result 
 head(penguins_long)
 ```
+
 This lengthened format is exactly what ggplot2 expects for multi-panel faceting. Let's visualise these distributions simultaneously: 
+
 ```{r}
 penguins_long |> 
   drop_na(value) |> 
@@ -517,9 +250,11 @@ penguins_long |>
     y = "Frequency"
   )
 ```
-#Widening data with pivot_wider() 
+
+#### Widening data with pivot_wider() 
 Now, we will look at the reverse operation. Sometimes, it's much easier for a reader to look at a wide table than a long, repetitive list. 
 First, lets calculate the mean body mass for each species on each island using group_by() and summarise(). 
+
 ```{r}
 mass_summary <- penguins |>
   drop_na(body_mass_g) |>
@@ -528,7 +263,9 @@ mass_summary <- penguins |>
 
 head(mass_summary)
 ```
+
 This output is technically tidy and computationally useful, but it is not ideal for publication presentation. We can use pivot_wider() to pull the island names up into columns, creating a clean matrix of species by island. 
+
 ```{r}
 mass_matrix <- mass_summary |>
   pivot_wider(
@@ -538,52 +275,65 @@ mass_matrix <- mass_summary |>
 
 head(mass_matrix)
 ```
+
 I prefer the way this looks. 
 
-#2.7 Separating and Uniting Data Tables 
+#### 2.7 Separating and Uniting Data Tables 
 In table3, we see the one column 'rate' contains two variables (cases and population). To address this, we can use separate() function, which separates one column into multiple columns wherever you designate. 
+
 ```{r}
 table3
 ```
+
 Now we will separate the rate column into two columns. 
+
 ```{r}
 table3 %>% 
   separate(rate, into = c("cases", "population"))
 ```
+
 Now, you can see there are two columns, cases and population. R knew to separate the numbers where the slash was. 
 But, if you wanted to use specific characters to separate a column, you can put this into the argument: 
+
 ```{r}
 table3 %>%
   separate(rate, into = c("cases", "population"), sep = "/")
 ```
+
 As we can see, the columns cases and population are showing as <chr> which means character, which is wrong, they are numbers, this happens because its a default of separate(). 
 We can fix this by using convert = TRUE. 
+
 ```{r}
 table3 %>%
   separate(rate, into = c("cases", "population"), convert = TRUE)
 ```
+
 Now the columns cases and population are <int>, as they are integer types. 
 
 We can also seperate the last two digits of each year. This makes data less tidy, bu can be useful in some cases. 
+
 ```{r}
 table3 %>%
   separate(year, into = c("century", "year"), sep =2)
 ```
+
 A new column has been added, century. 
 
-#Using unite(). 
+#### Using unite(). 
 unite() is the inverse of separate(). We use unite() to combine multiple columns into a single column. We will use it to combine century and year columns from above. 
+
 ```{r}
 table5 %>% 
   unite(new, century, year, sep = "")
 ```
+
 Nice! Now our columns are combined. We add sep="" because we dont want any separator. 
 
-#2.8 Wrangling Strings & Dates 
+#### 2.8 Wrangling Strings & Dates 
 When combining data from different sources-say, a government database, an oceanographic sensor, and handwritten field sheets-we inevitably run into formatting mismatches. A computer does not know that Nelly Bay, nelly_bay and NELLY BAY are the same location. Similarly, date formats vary wildy depending on the instrument or the researchers regional settings (e.g. DD/MM/YYYY vs. YYYY-MM-DD). 
 So, we myst first standardize our text strings and date-times. The tidyverse includes two specialised packages for this... stringr for text and lubridate for dates. 
 
-#Standardising text with stringr. 
+#### Standardising text with stringr. 
 stringr package begins with str_. 
 
 ```{r}
@@ -609,7 +359,7 @@ print(clean_sites)
 ```
 As we can see, all the different types of nelly bay variations and geoffery bay variations are now the same. 
 
-#Mastering time with lubridate 
+#### Mastering time with lubridate 
 If your dataset contains a date formatted as "25/12/2026" we would use the function dmy(). If the date is 2026-12-25, you use ymd(). 
 
 ```{r}
@@ -623,6 +373,7 @@ date_2 <- ymd("2026-12-25")
 #R now recognises these as identical Date objects. 
 date_1 == date_2
 ```
+
 For high-frequency marine data, such as acoustic telemetry or CTD profiles, we often need to parse exact timestamps. We do this by appending _mhs (hours, minutes, seconds) to our functions. 
 
 ```{r}
@@ -640,7 +391,7 @@ sensor_clean <- sensor_data |>
 
 print(sensor_clean)
 ```
-#2.9 Relational Data: Joining Tables 
+#### 2.9 Relational Data: Joining Tables 
 Bringing tables together based on a common identifying column, known as a key. 
 We will set up two tables to demonstrate: 
 
@@ -660,7 +411,7 @@ site_metadata <- tibble(
 )
 ```
 
-#The workhorse: left_ and right_join() 
+#### The workhorse: left_ and right_join() 
 The left_join() and right_join() work the same way, but in opposite directions. 
 For example: left_join() keeps all the rows from your left table (observations) and matches data from your right table (site_metadata), wherever the key matches. If a match is missing, it fills in the gaps with NA. 
 
@@ -671,7 +422,8 @@ joined_data <- observations |>
 
 print(joined_data)
 ```
-#The Strict Filter: inner_join()
+
+#### The Strict Filter: inner_join()
 An inner_join() only keeps rows that have complete matches in both tables. If an observation occurs at a site that isnt listed in the metadata, that observation will be dropped from the dataset. 
 
 ```{r}
@@ -679,7 +431,8 @@ matched_data <- observations |>
   inner_join(site_metadata, by = join_by(site_code))
 glimpse(matched_data)
 ```
-#The Detective: anti_join()
+
+#### The Detective: anti_join()
 The anti_join() filters your left table to show only rows that do not have a match in the right table. 
 If you try a left_join() and end up with unexpected NA values, use an anti_join() to find out exactly which site codes are misspelled or missing from your metadata table. 
 
@@ -690,10 +443,11 @@ missing_context <- observations |>
 
 glimpse(missing_context)
 ```
-#2.10 Handling Missing Values 
+
+#### 2.10 Handling Missing Values 
 Missing data (NA) is normal in the reality of field science. Sometimes cells are deliberatly left blank to indicate zero when time is of the essence etc. 
 
-#Converting legacy erros with na_if() 
+#### Converting legacy erros with na_if() 
 Some kinds of equipment have numbers that represent a missing value, e.g. like -99 or -999, as they cannot output a blank NA. If these are left in our dataset, the mean temperature calculations will be completely ruined. But, this can be fixed securley inside a mutate() using dplyr::na_if(): 
 
 ```{r}
@@ -708,7 +462,8 @@ fixed_logger <- logger_data |>
 
 print(fixed_logger)
 ```
-#Replacing missing values with coalesce 
+
+#### Replacing missing values with coalesce 
 Sometimes NA can mean a known fixed number, most commonly zero, not missing data. 
 E.g. a surveyor may leave a cell blank to indicate they saw zero sharks, R will import blank cell as NA. 
 We can use dplyr::coalesce() inside mutate() to hunt down every NA in a specific column and replace it with a zero (or any fixed value). 
@@ -725,7 +480,8 @@ shark_fixed <- shark_counts |>
 
 print(shark_fixed)
 ```
-#The special case of NaN (Not a Number)
+
+#### The special case of NaN (Not a Number)
 Instead of, NA - we do not know what the value is, NaN means - this value is mathematicllay impossible. 
 It is most common when performing a mathematical operation that has an indeterminate result, such as dividing zero by zero i.e. when calculating metrics such as Catch Per Unit Effort (CPUE). 
 
@@ -742,9 +498,10 @@ cpue_calc <- cpue_data |>
 
 print(cpue_calc)
 ```
+
 Output in Bay_2 cpue = NaN. But can use "is.nan()" function to audit the data for mathematical errors without flagging standard missing data. 
 
-#Implicit missing values and the zero-data framework: complete()
+#### Implicit missing values and the zero-data framework: complete()
 In ecology, knowing where a species was not found is just as important as knowing where it was found. However, raw data almost exclusively records presences (implicit missing data). 
 Example: raw catch log of coral trout species, it only lists when it was caught: 
 
@@ -755,6 +512,7 @@ raw_catch <- tibble(
   count = c(5, 2, 8)
 )
 ```
+
 It's implied that Reef_2 was surveyed but no Plectopomus were found. If we calculate the mean catch across all sites, base R will tell us it is 2 (because it only knows about Reef_1), ecologically, the mean should be 1 (2 at Reef_1, and 0 at Reef_2). 
 We can use tidyr::complete() to build a zero-data framework. This function finds all unique combinations of the variables you supple, explicitly creates rows for the missing combinations, and allows you to fill the resulting NAs with 0. 
 
@@ -765,9 +523,10 @@ full_catch_matrix <- raw_catch |>
 
 print(full_catch_matrix)
 ```
+
 Now Reef_2 now explicitly lists Pleopardus with a count of 0. Building these frameworks is a mandatory prerequisite before reading into Generalised Linear Models (GLMs) and other analyses. 
 
-#The nuclear option: drop_na() 
+#### The nuclear option: drop_na() 
 If an NA represents a failed instrument reading, and that reading is the core response variable of your analysis, you may have no choice but to remove the entire row. We can do this cleanly using drop_na(). 
 
 ```{r}
@@ -781,7 +540,7 @@ clean_log <- sensor_log |>
   drop_na(salinity)
 ```
 
-#2.11 Practical Exercies: Penuins, Pivots, and Relational Data 
+#### 2.11 Practical Exercies: Penuins, Pivots, and Relational Data 
 
 Exercise 1: Cleaning the Messy Metadata 
 Run the following code to generate the colleague's messy metadata table in your environment: 
@@ -821,17 +580,5 @@ Joining this clean metadata to the main penguins dataset and calling it penguins
 penguins_spatial <- penguins |>
   left_join(island_metadata_clean, by = join_by(island == island_name))
 ```
-
-
-
-
-
-
-
-
-
-
-
-
 
 
