@@ -1,4 +1,4 @@
-## Module02 - R for Marine Science
+# Module 2: R for Marine Science
 
 Throughout module 2 we completed two workshops and one keystone exercise (which is in a separate repository). 
 Below is a summary of what we completed during these workshops. 
